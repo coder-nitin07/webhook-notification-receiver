@@ -2,10 +2,12 @@ const express = require("express");
 const crypto = require("crypto");
 require("dotenv").config();
 
+const processedEvents = require("./processedEvents");
+
 const app = express();
 const PORT = 3000;
 
-// IMPORTANT: capture raw body
+// capture raw body
 app.use(
   express.json({
     verify: (req, res, buf) => {
@@ -24,10 +26,20 @@ app.post("/webhook", (req, res) => {
     .digest("hex");
 
   if (receivedSignature !== expectedSignature) {
-    console.log("❌ Invalid signature");
+    console.log("Invalid signature");
     return res.status(401).json({ error: "Invalid signature" });
   }
 
+  const eventId = req.body.eventId;
+
+  // 🔁 Idempotency check
+  if (processedEvents.has(eventId)) {
+    console.log(`🔁 Duplicate event ${eventId} ignored`);
+    return res.status(200).json({ status: "duplicate" });
+  }
+
+  // mark as processed
+  processedEvents.add(eventId);
   
   console.log("✅ Webhook verified");
   console.log("Body:", req.body);
